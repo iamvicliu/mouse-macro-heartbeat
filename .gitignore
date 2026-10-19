@@ -1,0 +1,17 @@
+# 运行时生成的文件，不要提交
+signal.log
+*.log
+
+# AutoHotkey 编译产物
+*.exe
+*.bin
+
+# 系统文件
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
