@@ -120,7 +120,12 @@ Create a Task Scheduler task: trigger = at logon, and tick "Run with highest pri
 
 ## Configuration
 
-Everything lives at the **top of `鼠标宏心跳.ahk`**. Edit with Notepad, then right-click the tray icon → Reload Script.
+Two ways to change them:
+
+- **GUI (recommended)**: right-click the tray icon → "Appearance" or "Change signal key". Changes apply immediately and are saved to `settings.ini`, so they survive a restart.
+- **Edit the file**: change the config block at the top of `鼠标宏心跳.ahk`, then right-click the tray icon → Reload Script.
+
+> Precedence: `settings.ini` > script defaults. Delete `settings.ini` next to the script to fall back to the script defaults.
 
 | Option | Default | Purpose |
 |---|---|---|
