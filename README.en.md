@@ -100,7 +100,9 @@ You declined the UAC prompt. Quit the script, start it again, and click "Yes".
 
 **Q: F8 conflicts with a game binding.**
 
-Change `SignalKey := "F10"` (or `"Pause"`, `"ScrollLock"`) in the script, and update the macro to match.
+Right-click the tray icon → "Change signal key", then press the key you want (applies to this session).
+
+To make it permanent, edit `SignalKey := "F10"` (or `"Pause"`, `"ScrollLock"`) at the top of the script and update the macro to match.
 
 **Q: The badge disappears inside the game.**
 
@@ -133,7 +135,8 @@ Everything lives at the **top of `鼠标宏心跳.ahk`**. Edit with Notepad, the
 | `OsdCorner` | `"BR"` | Badge corner: `BR` / `BL` / `TR` / `TL` |
 | `OsdMarginX` | `24` | Distance from screen edge, horizontal (px) |
 | `OsdMarginY` | `12` | Distance from screen edge, vertical (px) |
-| `OsdFontSize` | `19` | Font size |
+| `OsdFontSize` | `19` | Font size (or use Tray → Appearance, 10–40) |
+| `OsdAlpha` | `245` | Opacity (60–255; also adjustable under Appearance) |
 | `OsdShowIdle` | `true` | Show the badge while idle |
 | `FollowForegroundMonitor` | `true` | Move the badge to the monitor that owns the active window |
 | `MonitorIndex` | `1` | Fixed monitor index when not following |
