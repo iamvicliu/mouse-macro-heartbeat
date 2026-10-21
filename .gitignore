@@ -15,3 +15,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# 用户本地设置（每个用户各不相同）
+settings.ini
