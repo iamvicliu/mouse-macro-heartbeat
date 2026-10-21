@@ -83,6 +83,7 @@ OSD_TITLE := "鼠标宏心跳"
 OSD_FONT_FACE := "Microsoft YaHei"
 
 ; 角标逻辑尺寸：跟着字号自动算，保证不同字号下留白一致
+; 注意：settings.ini 里的字号会在 LoadSettings() 之后覆盖，所以那边会再算一次
 osdH := OsdFontSize + 17
 osdW := osdH * 3 + 16
 
@@ -106,6 +107,15 @@ paused := false
 ; 启动
 ; ============================================================================
 LogInit()
+
+; ---- 读取用户设置（settings.ini 存在则覆盖上面的默认值）----
+LoadSettings()
+
+; 字号可能被 settings.ini 改过，这里按最终字号重算角标尺寸
+osdH := OsdFontSize + 17
+osdW := osdH * 3 + 16
+realW := osdW
+realH := osdH
 
 ; ---- 权限自检 ----
 if (!A_IsAdmin && AutoElevate) {
@@ -243,7 +253,7 @@ ApplyOsdAppearance(newSize := "", newAlpha := "") {
         UpdateOsdPos()
     }
     Log("APPEARANCE size=" OsdFontSize " alpha=" ClampAlpha(OsdAlpha) " -> " realW "x" realH
-        . " (仅为本次运行生效，想永久保存请改脚本顶部配置)")
+        . " (已即时应用)")
 }
 
 UpdateOsdPos() {
@@ -436,7 +446,7 @@ ShowAppearanceDlg(*) {
     alEdit := dlg.AddEdit("x140 y36 w90 vAlpha", OsdAlpha)
     alUp := dlg.AddUpDown("Range60-255 16 vAlphaUp", OsdAlpha)
 
-    dlg.AddText("x18 y74 cGray", "改完立刻生效。想让设置永久保留，请改脚本顶部配置。")
+    dlg.AddText("x18 y74 cGray", "改完立刻生效，并自动保存到 settings.ini。")
     dlg.AddButton("x18 y104 w110 h30 Default", "应用").OnEvent("Click", ApplyDlg)
     dlg.AddButton("x140 y104 w110 h30", "取消").OnEvent("Click", (*) => dlg.Destroy())
     dlg.Show("AutoSize")
@@ -454,6 +464,8 @@ ShowAppearanceDlg(*) {
             return
         }
         ApplyOsdAppearance(newSz, newAl)
+        if (!SaveSettings())
+            MsgBox("设置已生效，但写入 settings.ini 失败，重启后会恢复。`n`n可以看 signal.log 里的 SETTINGS 行。", OSD_TITLE, 48)
         dlg.Destroy()
     }
 }
@@ -520,11 +532,12 @@ ShowSignalKeyDlg(*) {
 
     SignalKey := endKey
     A_IconTip := OSD_TITLE . " — 信号键 " . SignalKey
-    Log("SIGNALKEY 切换到 " . endKey . " （本次运行生效；要永久保存请改脚本顶部 SignalKey）")
+    saved := SaveSettings()
+    Log("SIGNALKEY 切换到 " . endKey . (saved ? " （已保存到 settings.ini）" : " （保存失败，仅本次运行生效）"))
 
     dlg.Destroy()
     MsgBox("已切换到 " . endKey . "。`n`n记得把宏软件里的信号键也改成 " . endKey . "。`n"
-         . "（本次运行生效，重启脚本会回到文件里配置的键）", OSD_TITLE, 64)
+         . (saved ? "`n设置已保存，重启后依然有效。" : "`n⚠ 写入 settings.ini 失败，重启后会恢复成原来的键。"), OSD_TITLE, 64)
 }
 
 
@@ -645,6 +658,115 @@ Log(msg) {
             FileDelete(logPath)
         FileAppend(A_Now . "." . A_MSec . "  " . msg . "`n", logPath, "UTF-8")
     } catch {
+    }
+}
+
+
+; ============================================================================
+; 用户设置持久化（settings.ini）
+; ---------------------------------------------------------------------------
+; 优先级：settings.ini  >  脚本顶部配置
+; 这样界面里改过的设置重启后还在，同时又不动主脚本文件。
+; 删掉 settings.ini 就恢复成脚本里的默认值。
+; ============================================================================
+GetSettingsPath() {
+    return A_ScriptDir . "\settings.ini"
+}
+
+LoadSettings() {
+    global SignalKey, SelfTestKey, PassThroughSignalKey
+    global OsdFontSize, OsdAlpha, OsdCorner, OsdMarginX, OsdMarginY, OsdShowIdle
+    global SoundOn, AutoTimeout, TimeoutFactor, TimeoutPadMs
+
+    ini := GetSettingsPath()
+    if (!FileExist(ini))
+        return
+
+    try {
+        v := IniRead(ini, "General", "SignalKey", "")
+        if (v != "")
+            SignalKey := v
+
+        v := IniRead(ini, "General", "SelfTestKey", "__none__")
+        if (v != "__none__" && v != "0")
+            SelfTestKey := (v = "__off__" ? "" : v)
+
+        v := IniRead(ini, "General", "PassThroughSignalKey", "")
+        if (v != "")
+            PassThroughSignalKey := (v = "1" || v = "true")
+
+        v := IniRead(ini, "General", "SoundOn", "")
+        if (v != "")
+            SoundOn := (v = "1" || v = "true")
+
+        v := IniRead(ini, "General", "AutoTimeout", "")
+        if (v != "")
+            AutoTimeout := (v = "1" || v = "true")
+
+        v := IniRead(ini, "Appearance", "FontSize", "")
+        if (v != "" && IsInteger(v))
+            OsdFontSize := Max(10, Min(40, Integer(v)))
+
+        v := IniRead(ini, "Appearance", "Alpha", "")
+        if (v != "" && IsInteger(v))
+            OsdAlpha := ClampAlpha(Integer(v))
+
+        v := IniRead(ini, "Appearance", "Corner", "")
+        if (v != "" && v ~= "^(BR|BL|TR|TL)$")
+            OsdCorner := v
+
+        v := IniRead(ini, "Appearance", "MarginX", "")
+        if (v != "" && IsInteger(v))
+            OsdMarginX := Integer(v)
+
+        v := IniRead(ini, "Appearance", "MarginY", "")
+        if (v != "" && IsInteger(v))
+            OsdMarginY := Integer(v)
+
+        v := IniRead(ini, "Appearance", "ShowIdle", "")
+        if (v != "")
+            OsdShowIdle := (v = "1" || v = "true")
+
+        Log("SETTINGS 已从 " . ini . " 读取：SignalKey=" . SignalKey
+            . " Font=" . OsdFontSize . " Alpha=" . OsdAlpha)
+    } catch as e {
+        Log("SETTINGS 读取失败：" . e.Message)
+    }
+}
+
+; 把当前所有用户可调项写回 settings.ini
+SaveSettings() {
+    global SignalKey, SelfTestKey, PassThroughSignalKey
+    global OsdFontSize, OsdAlpha, OsdCorner, OsdMarginX, OsdMarginY, OsdShowIdle
+    global SoundOn, AutoTimeout, TimeoutFactor, TimeoutPadMs
+
+    ini := GetSettingsPath()
+    try {
+        ; 文件不存在时先建一个带说明的骨架
+        if (!FileExist(ini)) {
+            FileAppend("; 鼠标宏心跳 用户设置`n"
+                     . "; 这个文件由程序自动维护，删掉它就会恢复成脚本里的默认值。`n`n",
+                       ini, "UTF-8")
+        }
+        IniWrite(SignalKey, ini, "General", "SignalKey")
+        IniWrite((SelfTestKey = "" ? "__off__" : SelfTestKey), ini, "General", "SelfTestKey")
+        IniWrite(PassThroughSignalKey ? 1 : 0, ini, "General", "PassThroughSignalKey")
+        IniWrite(SoundOn ? 1 : 0, ini, "General", "SoundOn")
+        IniWrite(AutoTimeout ? 1 : 0, ini, "General", "AutoTimeout")
+
+        IniWrite(OsdFontSize, ini, "Appearance", "FontSize")
+        IniWrite(ClampAlpha(OsdAlpha), ini, "Appearance", "Alpha")
+        IniWrite(OsdCorner, ini, "Appearance", "Corner")
+        IniWrite(OsdMarginX, ini, "Appearance", "MarginX")
+        IniWrite(OsdMarginY, ini, "Appearance", "MarginY")
+        IniWrite(OsdShowIdle ? 1 : 0, ini, "Appearance", "ShowIdle")
+
+        Log("SETTINGS 已保存到 " . ini . "：SignalKey=" . SignalKey
+            . " Font=" . OsdFontSize . " Alpha=" . ClampAlpha(OsdAlpha))
+        return true
+    } catch as e {
+        Log("SETTINGS 保存失败：" . e.Message)
+        return false
     }
 }
 
